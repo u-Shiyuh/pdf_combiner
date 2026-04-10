@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Combiner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 15px 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .file-input-label:hover {
+            background: #5568d3;
+        }
+
+        .file-list {
+            margin-bottom: 20px;
+            min-height: 60px;
+        }
+
+        .file-item {
+            padding: 10px 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .file-item:before {
+            content: "📄";
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .no-files {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        .combine-btn {
+            width: 100%;
+            padding: 15px;
+            background: #764ba2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .combine-btn:hover:not(:disabled) {
+            background: #653a8e;
+        }
+
+        .combine-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .status.processing {
+            background: #d1ecf1;
+            color: #0c5460;
+            display: block;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(12, 84, 96, 0.3);
+            border-radius: 50%;
+            border-top-color: #0c5460;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Combiner</h1>
+        <p class="subtitle">Merge multiple PDF files into one</p>
+
+        <div class="file-input-wrapper">
+            <input type="file" id="fileInput" accept=".pdf" multiple>
+            <label for="fileInput" class="file-input-label">Select PDF Files</label>
+        </div>
+
+        <div class="file-list" id="fileList">
+            <div class="no-files">No files selected</div>
+        </div>
+
+        <button class="combine-btn" id="combineBtn" disabled>Combine PDFs</button>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const combineBtn = document.getElementById('combineBtn');
+        const status = document.getElementById('status');
+        let selectedFiles = [];
+
+        fileInput.addEventListener('change', (e) => {
+            selectedFiles = Array.from(e.target.files);
+            displayFiles();
+            updateCombineButton();
+        });
+
+        function displayFiles() {
+            if (selectedFiles.length === 0) {
+                fileList.innerHTML = '<div class="no-files">No files selected</div>';
+                return;
+            }
+
+            fileList.innerHTML = selectedFiles
+                .map(file => `<div class="file-item">${file.name}</div>`)
+                .join('');
+        }
+
+        function updateCombineButton() {
+            combineBtn.disabled = selectedFiles.length < 2;
+        }
+
+        function showStatus(message, type) {
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+        }
+
+        function hideStatus() {
+            status.className = 'status';
+            status.style.display = 'none';
+        }
+
+        async function combinePDFs() {
+            if (selectedFiles.length < 2) {
+                showStatus('Please select at least 2 PDF files', 'error');
+                return;
+            }
+
+            showStatus('<span class="loader"></span>Combining PDFs...', 'processing');
+            combineBtn.disabled = true;
+
+            try {
+                // Create a new PDF document
+                const mergedPdf = await PDFLib.PDFDocument.create();
+
+                // Process each PDF file
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+
+                    // Read file as array buffer
+                    const arrayBuffer = await file.arrayBuffer();
+
+                    // Load the PDF
+                    const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
+
+                    // Copy all pages from this PDF
+                    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+
+                    // Add each page to the merged PDF
+                    copiedPages.forEach((page) => {
+                        mergedPdf.addPage(page);
+                    });
+                }
+
+                // Save the merged PDF
+                const mergedPdfBytes = await mergedPdf.save();
+
+                // Create a blob and trigger download
+                const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+
+                // Generate filename with timestamp
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').slice(0, -5);
+                link.href = url;
+                link.download = `merged_${timestamp}.pdf`;
+                link.click();
+
+                // Clean up
+                URL.revokeObjectURL(url);
+
+                showStatus(`Successfully combined ${selectedFiles.length} PDF files!`, 'success');
+
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    hideStatus();
+                    combineBtn.disabled = false;
+                }, 3000);
+
+            } catch (error) {
+                console.error('Error combining PDFs:', error);
+                showStatus(`Error: ${error.message || 'Failed to combine PDFs'}`, 'error');
+                combineBtn.disabled = false;
+            }
+        }
+
+        combineBtn.addEventListener('click', combinePDFs);
+
+        // Prevent default drag and drop behavior
+        document.addEventListener('dragover', (e) => e.preventDefault());
+        document.addEventListener('drop', (e) => e.preventDefault());
+    </script>
+</body>
+</html>
